@@ -27,6 +27,8 @@ LEADS = 12                 # 12 × 10 min = 2 hours
 REDUCE = 4                 # motion grid: 2048 / 4 = 512 px (~2.8 km)
 MIN_DBZ = 8.0              # echoes used for motion
 SMOOTH_PX = 18             # motion smoothing on the reduced grid (~50 km)
+DRY_DB = -17.0             # rain rate floor in dB (0.02 mm/h): below the weakest echo the radar shows
+MIN_OUT_DBZ = 4.0          # same lower limit as the observed OPERA frames
 
 
 def dbz_of(arr):
@@ -123,16 +125,16 @@ def displacements(U, V, leads=LEADS):
 
 
 def _rain_db(dbz):
-    """dBZ (NaN = dry) → rain rate in dB (Marshall–Palmer), dry = -10 dB (0.1 mm/h)."""
-    z = np.where(np.isfinite(dbz), dbz, -10.0)
+    """dBZ (NaN = dry) → rain rate in dB (Marshall–Palmer), dry = DRY_DB."""
+    z = np.where(np.isfinite(dbz), dbz, -40.0)
     rate = np.power(np.power(10, z / 10) / 200, 1 / 1.6)
-    return 10 * np.log10(np.maximum(rate, 0.1)).astype(np.float32)
+    return np.maximum(10 * np.log10(np.maximum(rate, 1e-6)), DRY_DB).astype(np.float32)
 
 
 def _dbz_of_rain_db(rdb):
     rate = np.power(10, rdb / 10)
     dbz = 10 * np.log10(200 * np.power(rate, 1.6))
-    dbz[rate <= 0.12] = np.nan
+    dbz[dbz < MIN_OUT_DBZ] = np.nan
     return dbz
 
 
@@ -155,16 +157,16 @@ def forecast(frames, leads=LEADS):
         DX = cv2.resize(dx, (W, H), interpolation=cv2.INTER_LINEAR) * REDUCE
         DY = cv2.resize(dy, (W, H), interpolation=cv2.INTER_LINEAR) * REDUCE
         moved = cv2.remap(base_db, xx - DX, yy - DY, cv2.INTER_LINEAR,
-                          borderMode=cv2.BORDER_CONSTANT, borderValue=-10.0)
+                          borderMode=cv2.BORDER_CONSTANT, borderValue=DRY_DB)
         lead_min = k * STEP_MIN
         # Predictability: small scales (below a size growing with lead) fade away.
-        sigma = 1.0 + 0.07 * lead_min                    # full-res px (~0.7 km): ~3.5 km at 1 h, ~6.5 km at 2 h
+        sigma = 1.0 + 0.04 * lead_min                    # full-res px (~0.7 km): ~2.5 km at 1 h, ~4 km at 2 h
         large = ndimage.gaussian_filter(moved, sigma, mode="nearest")
-        keep_small = np.exp(-lead_min / 70.0)
+        keep_small = np.exp(-lead_min / 120.0)
         blended = large + (moved - large) * keep_small
         # Only rain that existed can move; smoothing must not paint drizzle over dry land.
-        support = ndimage.maximum_filter(moved > -9.5, size=int(2 * sigma) + 1)
-        blended = np.where(support, blended, -10.0)
+        support = ndimage.maximum_filter(moved > DRY_DB + 0.5, size=int(2 * sigma) + 1)
+        blended = np.where(support, blended, DRY_DB)
         out.append(encode(_dbz_of_rain_db(blended)))
     speed = float(np.hypot(mu, mv))
     info = {"u": mu, "v": mv, "speed": speed, "wet": wet}
