@@ -11,7 +11,39 @@ S = requests.Session()
 S.headers["User-Agent"] = "Nowline-data/1.0 (github actions)"
 
 
+import threading
+import time
+
+# EUMETView's archive can stall for minutes. After a run of failures, stop asking for a few
+# minutes (callers retry on a later run) instead of burning the whole job on timeouts.
+_lock = threading.Lock()
+_fails = [0]
+_paused_until = [0.0]
+
+
+class Paused(Exception):
+    pass
+
+
 def _getmap(layer, fmt, size, when, transparent=False):
+    with _lock:
+        if time.time() < _paused_until[0]:
+            raise Paused("EUMETView paused after repeated failures")
+    try:
+        content = _request(layer, fmt, size, when, transparent)
+    except Exception:
+        with _lock:
+            _fails[0] += 1
+            if _fails[0] >= 6:
+                _paused_until[0] = time.time() + 240
+                _fails[0] = 0
+        raise
+    with _lock:
+        _fails[0] = 0
+    return content
+
+
+def _request(layer, fmt, size, when, transparent):
     minx, miny, maxx, maxy = grid.bbox_3857()
     params = {
         "service": "WMS", "version": "1.3.0", "request": "GetMap", "layers": layer, "styles": "",
@@ -20,7 +52,7 @@ def _getmap(layer, fmt, size, when, transparent=False):
     }
     if transparent:
         params["transparent"] = "true"
-    r = S.get(WMS, params=params, timeout=60)
+    r = S.get(WMS, params=params, timeout=(10, 30))
     if r.status_code != 200 or "image" not in r.headers.get("Content-Type", ""):
         return None
     return r.content

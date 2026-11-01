@@ -41,6 +41,12 @@ def pmap(fn, items, workers=8):
         return list(pool.map(fn, items))
 
 
+# Time budget for history work in this run, and whether anything was skipped or failed
+# (so an event is only marked finished once everything it can have has been fetched).
+DEADLINE = [None]
+INCOMPLETE = [False]
+
+
 def cached(cache, name, build):
     """Return cached bytes for `name`, building (and caching) them if needed. None = unavailable."""
     path = os.path.join(cache, name)
@@ -48,10 +54,14 @@ def cached(cache, name, build):
         return path if os.path.getsize(path) > 0 else None
     if build is None:
         return None
+    if DEADLINE[0] is not None and time.time() > DEADLINE[0]:
+        INCOMPLETE[0] = True          # out of time: fetch it next run
+        return None
     try:
         data = build()
     except Exception as e:
         log("  failed", name, e)
+        INCOMPLETE[0] = True          # transient error: retry next run
         return None
     if data is None:
         return None
@@ -299,12 +309,19 @@ def build_events(out, cache, catalogue="events.json", budget=600):
             log(f"event {e['id']}: postponed to next run")
             continue
         try:
+            DEADLINE[0] = deadline
+            INCOMPLETE[0] = False
             card = build_event(e, out, cache)
+            DEADLINE[0] = None
             if card.get("frames"):
-                with open(done_marker, "w") as f:
-                    json.dump(card, f)
-                cards.append(card)
+                cards.append(card)                    # show what we have so far
+                if not INCOMPLETE[0]:
+                    with open(done_marker, "w") as f:
+                        json.dump(card, f)
+                else:
+                    log(f"event {e['id']}: partly built, finishing next run")
         except Exception:
+            DEADLINE[0] = None
             traceback.print_exc()
     os.makedirs(os.path.join(out, "events"), exist_ok=True)
     with open(os.path.join(out, "events/index.json"), "w") as f:
