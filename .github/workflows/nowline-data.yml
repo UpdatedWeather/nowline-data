@@ -43,7 +43,7 @@ jobs:
           restore-keys: nowline-cache-
 
       - name: Build data
-        run: python -m nowline.cli all --out public --cache cache --budget 600
+        run: cd NowlineCloud && python -m nowline.cli all --out ../public --cache ../cache --budget 600
 
       - name: Save cache
         if: always()
