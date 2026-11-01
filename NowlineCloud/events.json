@@ -1,0 +1,15 @@
+[
+  {"id": "midlands-storms-2026-05-26", "name": "Midlands thunderstorms", "detail": "Afternoon storms erupt across the Midlands and Lincolnshire", "kind": "thunder", "start": "2026-05-26T13:00Z", "hours": 10, "lat": 52.8, "lon": -1.2, "zoom": 6.2},
+  {"id": "storm-chandra-2026-01-26", "name": "Storm Chandra", "detail": "Major incident in Somerset; severe flood warnings in Devon", "kind": "flood", "start": "2026-01-26T09:00Z", "hours": 24, "lat": 51.0, "lon": -3.4, "zoom": 6.1},
+  {"id": "storm-goretti-2026-01-08", "name": "Storm Goretti", "detail": "Amber snow and wind warnings; heavy snow for Wales and the Midlands", "kind": "snow", "start": "2026-01-08T09:00Z", "hours": 24, "lat": 52.6, "lon": -2.6, "zoom": 5.9},
+  {"id": "new-year-snow-2026-01-02", "name": "New Year snow", "detail": "Amber snow warnings as the year starts wintry, especially in the north", "kind": "snow", "start": "2026-01-02T12:00Z", "hours": 24, "lat": 56.0, "lon": -3.5, "zoom": 5.6},
+  {"id": "storm-claudia-2025-11-14", "name": "Storm Claudia", "detail": "Torrential rain and severe flooding in Monmouth and south Wales", "kind": "flood", "start": "2025-11-14T00:00Z", "hours": 24, "lat": 51.8, "lon": -3.0, "zoom": 6.3},
+  {"id": "storm-amy-2025-10-03", "name": "Storm Amy", "detail": "Amber wind and rain warnings across the north", "kind": "wind", "start": "2025-10-03T09:00Z", "hours": 18, "lat": 56.0, "lon": -5.0, "zoom": 5.8},
+  {"id": "storm-floris-2025-08-04", "name": "Storm Floris", "detail": "Unusually strong summer storm across Scotland", "kind": "wind", "start": "2025-08-04T03:00Z", "hours": 18, "lat": 57.0, "lon": -4.5, "zoom": 6.0},
+  {"id": "thunderstorms-2025-06-13", "name": "Thunderstorms · 13–14 June 2025", "detail": "~30,000 lightning strikes overnight, flash flooding", "kind": "thunder", "start": "2025-06-13T18:30Z", "hours": 9, "lat": 52.4, "lon": -0.6, "zoom": 5.9},
+  {"id": "storm-eowyn-2025-01-23", "name": "Storm Éowyn", "detail": "Red wind warnings for Northern Ireland and Scotland", "kind": "wind", "start": "2025-01-23T18:00Z", "hours": 18, "lat": 55.0, "lon": -5.5, "zoom": 5.8},
+  {"id": "snow-floods-2025-01-04", "name": "Snow and floods", "detail": "Heavy snow over the Pennines, then flooding in Greater Manchester", "kind": "snow", "start": "2025-01-04T18:00Z", "hours": 24, "lat": 53.6, "lon": -2.2, "zoom": 6.0},
+  {"id": "storm-darragh-2024-12-06", "name": "Storm Darragh", "detail": "Red wind warning; bands of heavy rain", "kind": "wind", "start": "2024-12-06T18:00Z", "hours": 18, "lat": 52.5, "lon": -3.8, "zoom": 5.9},
+  {"id": "storm-bert-2024-11-23", "name": "Storm Bert", "detail": "Snow in Scotland, then flooding in Wales and the Midlands", "kind": "flood", "start": "2024-11-23T06:00Z", "hours": 24, "lat": 52.6, "lon": -3.2, "zoom": 6.0},
+  {"id": "first-snow-2024-11-21", "name": "First snow of winter", "detail": "Snow showers and ice across Scotland and northern England", "kind": "snow", "start": "2024-11-21T09:30Z", "hours": 14, "lat": 55.5, "lon": -3.0, "zoom": 5.6}
+]

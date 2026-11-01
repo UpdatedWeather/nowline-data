@@ -1,0 +1,62 @@
+name: Nowline data
+
+# Every 10 minutes: build the live radar/satellite/lightning loop and any unfinished history
+# events, then publish everything to GitHub Pages. Free for public repositories.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: nowline-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore cache
+        uses: actions/cache/restore@v4
+        with:
+          path: cache
+          key: nowline-cache-${{ github.run_id }}
+          restore-keys: nowline-cache-
+
+      - name: Build data
+        run: python -m nowline.cli all --out public --cache cache --budget 600
+
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: cache
+          key: nowline-cache-${{ github.run_id }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
