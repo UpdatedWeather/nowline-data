@@ -136,9 +136,52 @@ def build_live(out, cache, hours=3.0):
     with open(os.path.join(out, "live/lightning.json"), "w") as f:
         json.dump(strikes, f, separators=(",", ":"))
     manifest["lightning"] = "live/lightning.json"
+    manifest["nowcast"] = build_nowcast(out, radar_done)
     with open(os.path.join(out, "latest.json"), "w") as f:
         json.dump(manifest, f, separators=(",", ":"))
     prune(cache, keep_after=ts(now) - 6 * 3600)
+
+
+def build_nowcast(out, radar_done):
+    """Next two hours from the newest radar frames (see nowcast.py). Never breaks the live feed."""
+    try:
+        from . import nowcast
+    except Exception as e:
+        log("nowcast: unavailable", e)
+        return None
+    try:
+        done = sorted(radar_done)
+        if len(done) < 2:
+            return None
+        # The newest run of frames exactly 10 minutes apart (up to 4).
+        chain = [done[-1]]
+        for t, p in reversed(done[:-1]):
+            if chain[0][0] - t != 600 or len(chain) == 4:
+                break
+            chain.insert(0, (t, p))
+        if len(chain) < 2:
+            log("nowcast: no consecutive frames")
+            return None
+        frames = [np.asarray(Image.open(p).convert("L")) for _, p in chain]
+        t0 = time.time()
+        fc, info = nowcast.forecast(frames)
+        if fc is None:
+            log("nowcast: too little rain to track")
+            return {"base": chain[-1][0], "step": 600, "frames": [], "dry": True}
+        base = chain[-1][0]
+        items = []
+        for k, arr in enumerate(fc, start=1):
+            t = base + k * 600
+            name = f"live/n_{base}_{t}.png"          # unique per run, so no cache serves an old one
+            with open(os.path.join(out, name), "wb") as f:
+                f.write(png_bytes(arr))
+            items.append({"t": t, "url": name})
+        log(f"nowcast: {len(items)} frames from {len(chain)} inputs in {time.time() - t0:.1f}s, "
+            f"motion {info['speed'] * 4 * 0.69 * 6:.0f} km/h")
+        return {"base": base, "step": 600, "frames": items, "motion": info}
+    except Exception:
+        traceback.print_exc()
+        return None
 
 
 def prune(cache, keep_after):
