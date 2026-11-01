@@ -1,4 +1,4 @@
-name: Nowline data
+name: Consensus data
 
 # Every 10 minutes: build the live radar/satellite/lightning loop and any unfinished history
 # events, then publish everything to GitHub Pages. Free for public repositories.
