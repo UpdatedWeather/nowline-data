@@ -8,7 +8,7 @@ from . import grid
 
 WMS = "https://view.eumetsat.int/geoserver/wms"
 S = requests.Session()
-S.headers["User-Agent"] = "Nowline-data/1.0 (github actions)"
+S.headers["User-Agent"] = "Consensus-data/1.0 (github actions)"
 
 
 import threading

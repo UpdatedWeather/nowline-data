@@ -1,4 +1,4 @@
-"""Build the files the Nowline app downloads.
+"""Build the files the Consensus app downloads.
 
     python -m nowline.cli live   --out public --cache cache     # last 3 h, run every ~10 min
     python -m nowline.cli events --out public --cache cache     # curated history (once per event)
@@ -342,7 +342,7 @@ def main():
     if a.cmd in ("events", "all"):
         build_events(a.out, a.cache, budget=a.budget)
     with open(os.path.join(a.out, "index.html"), "w") as f:
-        f.write("<!doctype html><title>Nowline data</title><p>Data feed for the Nowline app.</p>")
+        f.write("<!doctype html><title>Consensus data</title><p>Data feed for the Consensus weather radar app.</p>")
     with open(os.path.join(a.out, ".nojekyll"), "w") as f:
         f.write("")
 

@@ -15,7 +15,7 @@ MO_BUCKET = "https://met-office-radar-obs-data.s3.eu-west-2.amazonaws.com"
 OPERA_HOST = "https://s3.waw3-1.cloudferro.com"
 OPERA_BUCKET = "openradar-24h"
 S = requests.Session()
-S.headers["User-Agent"] = "Nowline-data/1.0 (github actions)"
+S.headers["User-Agent"] = "Consensus-data/1.0 (github actions)"
 
 
 def _keys(xml):

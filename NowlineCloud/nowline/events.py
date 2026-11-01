@@ -6,7 +6,7 @@ import numpy as np
 import requests
 
 S = requests.Session()
-S.headers["User-Agent"] = "Nowline-data/1.0 (github actions; contact via repository)"
+S.headers["User-Agent"] = "Consensus-data/1.0 (github actions; contact via repository)"
 
 
 def _grid(lat, lon, n=12, dlat=2.6, dlon=4.0):
