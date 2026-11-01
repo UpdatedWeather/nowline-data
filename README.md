@@ -1,6 +1,6 @@
-# Nowline data
+# Consensus data
 
-A free GitHub Actions job that prepares everything the Nowline app shows, so the phone only
+A free GitHub Actions job that prepares everything the Consensus app shows, so the phone only
 downloads small, ready-to-draw files:
 
 | File | What | Size |
@@ -22,7 +22,7 @@ downloads small, ready-to-draw files:
    **Add file → Create new file**, name it `.github/workflows/nowline-data.yml`, paste the contents
    of `workflow-nowline-data.yml`, **Commit**.
 4. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-5. **Actions** tab → enable workflows if asked → open **Nowline data** → **Run workflow**.
+5. **Actions** tab → enable workflows if asked → open **Consensus data** → **Run workflow**.
 6. When the run finishes (first run ~10–15 min), your feed lives at
    `https://<your-github-username>.github.io/nowline-data/latest.json`.
 7. Tell Claude your GitHub username so the app points at it (it's one line in `CloudFeed.swift`).
@@ -40,3 +40,6 @@ history feed as they finish — all 13 are usually ready within the first hour.
   place names © OpenStreetMap contributors.
 - GitHub Pages is fine for testing and a beta. For a public App Store release, the same files can
   move to Cloudflare R2 (free tier, needs a card on file) without changing the app beyond the URL.
+
+> The repository and the `nowline` package keep their original names so the published feed URL
+> (`…github.io/nowline-data/`) never changes; only the app is called Consensus.
