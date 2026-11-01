@@ -18,6 +18,8 @@ The method follows the approach used by operational nowcasting systems (pysteps 
 
 Output frames use the same 8-bit encoding as observed radar: (dBZ + 32) × 2, 0 = no echo.
 """
+import contextlib
+import io
 import numpy as np
 import cv2
 from scipy import ndimage
@@ -138,11 +140,8 @@ def _dbz_of_rain_db(rdb):
     return dbz
 
 
-def forecast(frames, leads=LEADS):
-    """Nowcast frames (uint8, full resolution) for +10 … +leads×10 minutes.
-
-    Returns (list_of_frames, info) or (None, None) when there's not enough rain to track.
-    """
+def forecast_flow(frames, leads=LEADS):
+    """Fallback nowcast (OpenCV optical flow), used if pysteps isn't available or fails."""
     m = motion(frames)
     if m is None:
         return None, None
@@ -169,5 +168,127 @@ def forecast(frames, leads=LEADS):
         blended = np.where(support, blended, DRY_DB)
         out.append(encode(_dbz_of_rain_db(blended)))
     speed = float(np.hypot(mu, mv))
-    info = {"u": mu, "v": mv, "speed": speed, "wet": wet}
+    info = {"u": mu, "v": mv, "speed": speed, "wet": wet, "method": "flow"}
     return out, info
+
+
+# --- pysteps --------------------------------------------------------------------------------
+#
+# The main method. pysteps (Pulkkinen et al. 2019) is the open-source nowcasting library used by
+# several national weather services:
+#   • Lucas–Kanade optical flow on features in the rain field, interpolated to a smooth dense
+#     motion field (pysteps.motion "LK");
+#   • S-PROG (Seed 2003): the rain field is split into a cascade of spatial scales; each scale is
+#     advected along the motion field and evolved with its own AR(2) process fitted to the last
+#     three radar frames, so small, short-lived showers lose detail quickly while large rain bands
+#     keep their shape; probability matching keeps realistic intensities.
+# S-PROG runs on a half-resolution grid (~1.4 km). For the first frames the full-resolution radar,
+# moved along the same motion field (pysteps semi-Lagrangian extrapolation), is blended in so the
+# step from "now" into the forecast keeps all the radar's detail.
+
+PS_REDUCE = 2              # S-PROG grid: 2048 / 2 = 1024 px
+RAIN_THR = 0.05            # mm/h: rain / no-rain for the transforms
+ZERO_DB = -15.0            # dB value for no rain
+PROBMATCH = "mean"         # keep the mean rain; "cdf" flattens wide areas into one shade
+
+
+def _rate(arr, reduce):
+    """uint8 frame → rain rate mm/h (Marshall–Palmer), block-averaged in Z by `reduce`."""
+    a = arr.astype(np.float32)
+    z = np.where(arr > 0, np.power(10.0, (a / 2 - 32) / 10), 0.0)
+    if reduce > 1:
+        h, w = z.shape
+        z = z[: h - h % reduce, : w - w % reduce].reshape(h // reduce, reduce, w // reduce, reduce).mean(axis=(1, 3))
+    return np.power(z / 200.0, 1 / 1.6).astype(np.float64)
+
+
+def _db(r):
+    return np.where(r >= RAIN_THR, 10 * np.log10(np.maximum(r, 1e-9)), ZERO_DB)
+
+
+def forecast_pysteps(frames, leads=LEADS):
+    from pysteps import motion as ps_motion, nowcasts as ps_nowcasts, extrapolation as ps_extrap
+
+    if len(frames) < 3:
+        return None, None
+    rates = np.stack([_rate(f, PS_REDUCE) for f in frames])
+    wet = float((rates[-1] >= 0.1).mean())
+    if wet < 0.002:
+        return None, None
+    rdb = np.stack([_db(r) for r in rates])
+
+    # Motion: Lucas–Kanade, dense, in half-res pixels per 10 minutes.
+    lk = ps_motion.get_method("LK")
+    with contextlib.redirect_stdout(io.StringIO()):
+        V = lk(rdb, verbose=False)
+    if not np.all(np.isfinite(V)):
+        V = np.nan_to_num(V)
+    # Smooth over ~40 km so the field can't kink between features (kinks stretch rain into streaks),
+    # and keep it near the area-wide motion at the edges, where LK has few features to go on.
+    V = np.stack([ndimage.gaussian_filter(V[i], 30, mode="nearest") for i in range(2)])
+    rainy = rdb[-1] > ZERO_DB
+    med = [float(np.median(V[i][rainy])) if rainy.any() else 0.0 for i in range(2)]
+    h, w = V.shape[1:]
+    yy, xx = np.mgrid[0:h, 0:w]
+    edge = np.minimum(np.minimum(xx, w - 1 - xx), np.minimum(yy, h - 1 - yy)).astype(np.float32)
+    trust = np.clip(edge / 60.0, 0, 1)
+    V = np.stack([V[i] * trust + med[i] * (1 - trust) for i in range(2)])
+
+    # S-PROG on the last three frames.
+    sprog = ps_nowcasts.get_method("sprog")
+    with contextlib.redirect_stdout(io.StringIO()):          # pysteps prints a long report
+        fc_db = sprog(rdb[-3:], V, leads, precip_thr=10 * np.log10(RAIN_THR), n_cascade_levels=6,
+                  ar_order=2, probmatching_method=PROBMATCH, conditional=False)
+        fc_db = np.asarray(fc_db)
+    fc_db = np.where(np.isfinite(fc_db), fc_db, ZERO_DB)
+
+    # Full-resolution extrapolation of the latest frame along the same motion (for detail early on).
+    H, W = frames[-1].shape
+    Vfull = np.stack([cv2.resize(V[i].astype(np.float32), (W, H), interpolation=cv2.INTER_LINEAR) * PS_REDUCE
+                      for i in range(2)])
+    full_db = _db(_rate(frames[-1], 1))
+    extrap = ps_extrap.get_method("semilagrangian")
+    sharp = extrap(full_db, Vfull, leads, outval=ZERO_DB)
+
+    out = []
+    for k in range(leads):
+        lead_min = (k + 1) * STEP_MIN
+        coarse = cv2.resize(fc_db[k].astype(np.float32), (W, H), interpolation=cv2.INTER_LINEAR)
+        sh = np.where(np.isfinite(sharp[k]), sharp[k], ZERO_DB).astype(np.float32)
+        # Early on mostly the radar itself (moved); later S-PROG's evolving large scales, with the
+        # radar's fine texture laid over them (fading with lead) so rain still looks like rain.
+        w = float(np.exp(-lead_min / 40.0))
+        detail = (sh - cv2.GaussianBlur(sh, (0, 0), 12.0)) * float(np.exp(-lead_min / 150.0))
+        mix_db = w * sh + (1 - w) * (coarse + detail * (coarse > ZERO_DB + 1))
+        # Keep the rain area realistic: as much wet area as the moved radar has (S-PROG's smoothing
+        # otherwise spreads a thin veil of drizzle over everything), taking the wettest pixels.
+        target = int((sh > 10 * np.log10(RAIN_THR) + 0.5).sum())
+        if 0 < target < mix_db.size:
+            cut = np.partition(mix_db.ravel(), mix_db.size - target)[mix_db.size - target]
+            mix_db = np.where(mix_db >= cut, mix_db, ZERO_DB)
+        rate = np.power(10, mix_db / 10)
+        dbz = 10 * np.log10(200 * np.power(np.maximum(rate, 1e-9), 1.6))
+        dbz[(rate < RAIN_THR) | (dbz < MIN_OUT_DBZ)] = np.nan
+        out.append(encode(dbz.astype(np.float32)))
+
+    # Area-wide motion in the units the log expects (quarter-res px per 10 min).
+    mu, mv = med[0] * PS_REDUCE / REDUCE, med[1] * PS_REDUCE / REDUCE
+    info = {"u": mu, "v": mv, "speed": float(np.hypot(mu, mv)), "wet": wet, "method": "pysteps-sprog"}
+    return out, info
+
+
+def forecast(frames, leads=LEADS):
+    """Nowcast frames (uint8, full resolution) for +10 … +leads×10 minutes.
+
+    pysteps S-PROG when available, otherwise the optical-flow fallback above.
+    Returns (list_of_frames, info) or (None, None) when there's not enough rain to track.
+    """
+    try:
+        fc, info = forecast_pysteps(frames, leads)
+        if fc is not None:
+            return fc, info
+        if len(frames) >= 3:
+            return None, None
+    except Exception as e:                                # pysteps missing or failed: fall back
+        print("pysteps nowcast failed, using optical flow:", repr(e), flush=True)
+    return forecast_flow(frames, leads)
