@@ -35,6 +35,9 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # pysteps for the radar nowcast; optional, the nowcast falls back to optical flow without it.
+      - run: pip install "pysteps>=1.10" || echo "pysteps could not be installed"
+
       - name: Restore cache
         uses: actions/cache/restore@v4
         with:
