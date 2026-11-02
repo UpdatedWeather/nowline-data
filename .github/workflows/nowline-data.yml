@@ -57,6 +57,8 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
+      - name: Add the app support and privacy page
+        run: cp -r site/. public/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
