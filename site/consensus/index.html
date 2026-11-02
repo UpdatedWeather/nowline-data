@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consensus Radar – Support & Privacy</title>
+<meta name="description" content="Help, contact and privacy information for Consensus Radar, the UK and Ireland rain radar app.">
+<style>
+:root{--bg:#0c1430;--card:#16204a;--text:#eef1ff;--muted:#aab3d6;--accent:#8b7cf6;--rain:#6bb8ff}
+*{box-sizing:border-box}
+body{margin:0;font:17px/1.6 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;color:var(--text);background:radial-gradient(1200px 600px at 10% -10%,#3a2f8f 0,transparent 60%),linear-gradient(180deg,#0c1430,#17163e);min-height:100vh}
+main{max-width:760px;margin:0 auto;padding:56px 20px 80px}
+h1{font-size:40px;line-height:1.15;margin:0 0 8px}
+h2{font-size:24px;margin:44px 0 12px}
+h3{font-size:18px;margin:24px 0 6px}
+p,li{color:var(--muted)}
+strong{color:var(--text)}
+a{color:var(--rain)}
+.tag{display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(139,124,246,.18);color:#cfc7ff;font-size:14px;font-weight:600;margin-bottom:18px}
+.card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:20px 22px;margin:16px 0}
+nav a{margin-right:18px;font-weight:600}
+footer{margin-top:56px;font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<span class="tag">Consensus Radar</span>
+<h1>Support &amp; privacy</h1>
+<p>Live rain radar for the UK and Ireland, with every major weather model in one forecast.</p>
+<nav><a href="#help">Help</a><a href="#contact">Contact</a><a href="#privacy">Privacy</a></nav>
+
+<h2 id="help">Help</h2>
+<div class="card">
+<h3>The radar isn't showing my location</h3>
+<p>Allow location in <strong>Settings › Privacy &amp; Security › Location Services › Consensus</strong> (“While Using the App”). Without it, the app shows the forecast for the middle of the map.</p>
+<h3>What does the confidence rating mean?</h3>
+<p>Consensus compares five forecast models (Met Office, ECMWF, DWD ICON, NOAA GFS and Météo-France). <strong>High</strong> means they agree; <strong>Medium</strong> or <strong>Low</strong> means they differ, so the details may change.</p>
+<h3>Why are some summaries simpler on my iPhone?</h3>
+<p>Written summaries, Ask and the explainers use Apple Intelligence where your iPhone supports it. On other iPhones, Consensus gives shorter answers built straight from the forecast.</p>
+<h3>My widget looks out of date</h3>
+<p>iOS decides how often widgets refresh. Opening the app updates them straight away.</p>
+<h3>Rain alerts aren't arriving</h3>
+<p>Check that notifications are allowed for Consensus, and that alerts are switched on for the place in <strong>Settings › Places</strong>.</p>
+</div>
+
+<h2 id="contact">Contact</h2>
+<div class="card">
+<p>Found a problem or have an idea? <a href="https://github.com/UpdatedWeather/nowline-data/issues/new">Open an issue on GitHub</a> and we'll get back to you. If you're testing with TestFlight, take a screenshot and tap <strong>Share Beta Feedback</strong>.</p>
+</div>
+
+<h2 id="privacy">Privacy policy</h2>
+<div class="card">
+<p><strong>Consensus doesn't have accounts, ads or tracking, and we don't collect or sell your personal data.</strong></p>
+<h3>Location</h3>
+<p>Your location is used on your iPhone to show you on the radar and to work out when rain will reach you. To get a forecast, the app sends the coordinates of the place you're looking at (not your name or any identifier) to the weather services listed below. We don't store your location.</p>
+<h3>Saved places and settings</h3>
+<p>Places you save, your settings and recent forecasts are kept only on your device and in its widgets.</p>
+<h3>Apple Intelligence</h3>
+<p>Written summaries and answers are produced on your iPhone. Your questions aren't sent to us or to any server.</p>
+<h3>Weather services</h3>
+<p>Forecast and map requests go to: Apple WeatherKit, Open-Meteo, MET Norway, the Met Office and EUMETNET OPERA radar (via AWS and our GitHub feed), EUMETSAT, MeteoAlarm, NASA GIBS, EOX and Esri map tiles. Each service receives only what it needs to answer the request, such as a map area or coordinates, and handles it under its own privacy policy.</p>
+<h3>Crash reports</h3>
+<p>If you choose to share analytics with app developers in iOS settings, Apple may pass us anonymous crash reports. We use them only to fix bugs.</p>
+<h3>Children</h3>
+<p>Consensus doesn't knowingly collect any information from anyone, including children.</p>
+<h3>Changes</h3>
+<p>If this policy changes, we'll update this page. Last updated 2 November 2026.</p>
+</div>
+
+<footer>© 2026 Nathan Roast · Weather data: Met Office, EUMETNET OPERA, EUMETSAT, Open-Meteo, MET Norway, Apple Weather.</footer>
+</main>
+</body>
+</html>
