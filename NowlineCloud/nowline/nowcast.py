@@ -257,8 +257,10 @@ def forecast_pysteps(frames, leads=LEADS):
         sh = np.where(np.isfinite(sharp[k]), sharp[k], ZERO_DB).astype(np.float32)
         # Early on mostly the radar itself (moved); later S-PROG's evolving large scales, with the
         # radar's fine texture laid over them (fading with lead) so rain still looks like rain.
-        w = float(np.exp(-lead_min / 40.0))
-        detail = (sh - cv2.GaussianBlur(sh, (0, 0), 12.0)) * float(np.exp(-lead_min / 150.0))
+        # The moved radar stays in charge for longer (showers visibly travel across the map
+        # rather than melting into S-PROG's smooth field); S-PROG takes over gradually.
+        w = float(np.exp(-lead_min / 90.0))
+        detail = (sh - cv2.GaussianBlur(sh, (0, 0), 12.0)) * float(np.exp(-lead_min / 240.0))
         mix_db = w * sh + (1 - w) * (coarse + detail * (coarse > ZERO_DB + 1))
         # Keep the rain area realistic: as much wet area as the moved radar has (S-PROG's smoothing
         # otherwise spreads a thin veil of drizzle over everything), taking the wettest pixels.
