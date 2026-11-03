@@ -1,7 +1,11 @@
 name: Consensus data
 
-# Every 10 minutes: build the live radar/satellite/lightning loop and any unfinished history
-# events, then publish everything to GitHub Pages. Free for public repositories.
+# Builds the live radar/satellite/lightning loop (and any unfinished history events) and
+# publishes everything to GitHub Pages. Free for public repositories.
+#
+# GitHub starts scheduled runs late (often only about once an hour), so each run publishes six
+# times, ten minutes apart, one slot after another. The next run queues behind it, so the feed
+# refreshes roughly every 10 minutes around the clock.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -22,10 +26,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        slot: [0, 1, 2, 3, 4, 5]
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      - name: Wait for this slot
+        if: matrix.slot > 0
+        run: |
+          # Start one minute past the next 10-minute mark, when the newest radar scan is out.
+          now=$(date +%s)
+          wait=$(( (660 - now % 600) % 600 ))
+          echo "Waiting ${wait}s"
+          sleep $wait
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -42,26 +60,30 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: cache
-          key: nowline-cache-${{ github.run_id }}
+          key: nowline-cache-${{ github.run_id }}-${{ matrix.slot }}
           restore-keys: nowline-cache-
 
       - name: Build data
-        run: cd NowlineCloud && python -m nowline.cli all --out ../public --cache ../cache --budget 600
+        run: cd NowlineCloud && python -m nowline.cli all --out ../public --cache ../cache --budget ${{ matrix.slot == 0 && 600 || 45 }}
 
       - name: Save cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: cache
-          key: nowline-cache-${{ github.run_id }}
+          key: nowline-cache-${{ github.run_id }}-${{ matrix.slot }}
 
       - uses: actions/configure-pages@v5
 
       - name: Add the app support and privacy page
         run: cp -r site/. public/
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
+          name: github-pages-${{ matrix.slot }}
 
       - id: deploy
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ matrix.slot }}
