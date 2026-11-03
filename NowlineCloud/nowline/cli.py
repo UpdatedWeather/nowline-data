@@ -85,8 +85,10 @@ def build_live(out, cache, hours=3.0):
     start = now - dt.timedelta(hours=hours, minutes=10)
     os.makedirs(os.path.join(out, "live"), exist_ok=True)
 
-    # Radar: OPERA every 10 minutes (the app's live cadence).
-    frames = [(t, k) for t, k in radar.opera_list(start, now) if t.minute % 10 == 0]
+    # Radar: OPERA every 5 minutes for the last 90 minutes (smooth playback where it matters),
+    # every 10 minutes before that.
+    recent = ts(now) - 90 * 60
+    frames = [(t, k) for t, k in radar.opera_list(start, now) if t.minute % 10 == 0 or ts(t) >= recent]
     log(f"radar: {len(frames)} frames")
 
     def do_radar(item):
@@ -150,7 +152,7 @@ def build_nowcast(out, radar_done):
         log("nowcast: unavailable", e)
         return None
     try:
-        done = sorted(radar_done)
+        done = sorted(r for r in radar_done if r[0] % 600 == 0)
         if len(done) < 2:
             return None
         # The newest run of frames exactly 10 minutes apart (up to 4).
