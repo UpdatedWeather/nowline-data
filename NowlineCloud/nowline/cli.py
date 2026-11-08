@@ -22,7 +22,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from PIL import Image
-from . import grid, radar, imagery, events as ev_mod
+from . import grid, radar, imagery, flashes, events as ev_mod
 
 UTC = dt.timezone.utc
 VERSION = 1
@@ -108,25 +108,29 @@ def build_live(out, cache, hours=3.0):
     sat_done = [r for r in pmap(do_sat, slots, 6) if r[1]]
     log(f"satellite: {len(sat_done)}/{len(slots)}")
 
-    # Lightning: 5-minute slots → individual strikes.
-    li_slots = list(range((ts(start) // 300) * 300, ts(now) - 300, 300))
+    # Lightning: real flashes from the Lightning Imager when there's a EUMETSAT key; otherwise
+    # the flash-area picture in 5-minute slots, turned into approximate points.
+    real = flashes.recent(start, now, cache, log)
+    li_slots = [] if real is not None else list(range((ts(start) // 300) * 300, ts(now) - 300, 300))
 
     def do_li(s):
         p = cached(cache, f"li/l_{s}.json", lambda: (lambda v: None if v is None else json.dumps(v).encode())(
             imagery.lightning(dt.datetime.fromtimestamp(s, UTC))))
         return (s, p)
     li_done = [r for r in pmap(do_li, li_slots, 8) if r[1]]
-    strikes = []
+    strikes = list(real) if real is not None else []
     for _, p in li_done:
         with open(p) as f:
             strikes += json.load(f)
-    log(f"lightning: {len(li_done)}/{len(li_slots)} slots, {len(strikes)} strikes")
+    log(f"lightning: {'real flashes' if real is not None else f'{len(li_done)}/{len(li_slots)} slots'}, {len(strikes)} strikes")
 
     # Publish.
     manifest = {"version": VERSION, "generated": ts(now), "source": "EUMETNET OPERA",
                 "domain": {"zoom": grid.ZOOM, "x": [grid.X0, grid.X1], "y": [grid.Y0, grid.Y1], "size": grid.SIZE},
                 "radar": [], "satellite": [], "lightning": None,
-                "lightningLatest": max((s for s, _ in li_done), default=None)}
+                "lightningLatest": (int(max((s[2] for s in strikes), default=0)) or None) if real is not None
+                                   else max((s for s, _ in li_done), default=None),
+                "lightningSource": "MTG Lightning Imager flashes" if real is not None else "MTG Lightning Imager flash areas"}
     for t, p in radar_done:
         name = f"live/r_{t}.png"
         shutil.copy(p, os.path.join(out, name))
