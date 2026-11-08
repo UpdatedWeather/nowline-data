@@ -64,6 +64,10 @@ jobs:
           restore-keys: nowline-cache-
 
       - name: Build data
+        env:
+          # Real lightning flashes (free EUMETSAT key; without these, flash areas are used).
+          EUMETSAT_KEY: ${{ secrets.EUMETSAT_KEY }}
+          EUMETSAT_SECRET: ${{ secrets.EUMETSAT_SECRET }}
         run: cd NowlineCloud && python -m nowline.cli all --out ../public --cache ../cache --budget ${{ matrix.slot == 0 && 600 || 45 }}
 
       - name: Save cache
