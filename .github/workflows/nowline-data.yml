@@ -33,7 +33,7 @@ jobs:
         slot: [0, 1, 2, 3, 4, 5]
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_again.outputs.page_url }}
     steps:
       - name: Wait for this slot
         if: matrix.slot > 0
@@ -87,7 +87,27 @@ jobs:
           path: public
           name: github-pages-${{ matrix.slot }}
 
+      # GitHub's Pages API sometimes can't find the artifact it was just given ("No artifacts
+      # named github-pages-N"); wait a minute and try once more before calling the slot failed.
       - id: deploy
         uses: actions/deploy-pages@v4
+        continue-on-error: true
         with:
           artifact_name: github-pages-${{ matrix.slot }}
+
+      - name: Wait before trying again
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 60
+
+      - id: deploy_again
+        if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+        with:
+          artifact_name: github-pages-${{ matrix.slot }}
+
+      # If GitHub still couldn't publish this slot, the next slot (ten minutes later) publishes a
+      # fresher copy anyway: note it, but don't fail the run (and don't send a failure email).
+      - name: Note a skipped publish
+        if: steps.deploy.outcome == 'failure' && steps.deploy_again.outcome == 'failure'
+        run: echo "::warning::GitHub Pages didn't accept slot ${{ matrix.slot }}; the next slot will publish instead."
