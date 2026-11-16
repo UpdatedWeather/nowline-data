@@ -28,7 +28,10 @@ def metoffice_list(start, end):
     """[(time, key)] for Met Office UK composites between two UTC datetimes."""
     out, day = [], start.replace(hour=0, minute=0, second=0, microsecond=0)
     while day <= end:
-        r = S.get(MO_BUCKET, params={"list-type": "2", "prefix": day.strftime("radar/%Y/%m/%d/"), "max-keys": "300"}, timeout=30)
+        # Start listing just before the window (a day holds hundreds of files; the newest matter).
+        prefix = day.strftime("radar/%Y/%m/%d/")
+        after = prefix + (max(start, day) - dt.timedelta(minutes=5)).strftime("%Y%m%d%H%M")
+        r = S.get(MO_BUCKET, params={"list-type": "2", "prefix": prefix, "start-after": after, "max-keys": "1000"}, timeout=30)
         r.raise_for_status()
         for k in _keys(r.text):
             if not k.endswith("_UK.h5"):
