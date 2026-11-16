@@ -25,12 +25,12 @@ class Paused(Exception):
     pass
 
 
-def _getmap(layer, fmt, size, when, transparent=False):
+def _getmap(layer, fmt, size, when, transparent=False, bbox=None):
     with _lock:
         if time.time() < _paused_until[0]:
             raise Paused("EUMETView paused after repeated failures")
     try:
-        content = _request(layer, fmt, size, when, transparent)
+        content = _request(layer, fmt, size, when, transparent, bbox)
     except Exception:
         with _lock:
             _fails[0] += 1
@@ -43,8 +43,8 @@ def _getmap(layer, fmt, size, when, transparent=False):
     return content
 
 
-def _request(layer, fmt, size, when, transparent):
-    minx, miny, maxx, maxy = grid.bbox_3857()
+def _request(layer, fmt, size, when, transparent, bbox=None):
+    minx, miny, maxx, maxy = bbox or grid.bbox_3857()
     params = {
         "service": "WMS", "version": "1.3.0", "request": "GetMap", "layers": layer, "styles": "",
         "format": fmt, "crs": "EPSG:3857", "bbox": f"{minx:.0f},{miny:.0f},{maxx:.0f},{maxy:.0f}",
@@ -68,6 +68,67 @@ def satellite(when, size=1536, quality=78):
         img = img.resize((size, size), Image.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=quality, optimize=True, progressive=True)
+    return buf.getvalue()
+
+
+# The app's wider cloud area (web-mercator zoom 6, tiles x 28…33, y 17…22), as in the app.
+WIDE = (6, 28, 33, 17, 22)
+
+
+def _wide_bbox():
+    z, x0, x1, y0, y1 = WIDE
+    n = 2 ** z
+    minx = (x0 / n - 0.5) * grid.CIRC
+    maxx = ((x1 + 1) / n - 0.5) * grid.CIRC
+    maxy = (0.5 - y0 / n) * grid.CIRC
+    miny = (0.5 - (y1 + 1) / n) * grid.CIRC
+    return minx, miny, maxx, maxy
+
+
+def _box_blur(a, r):
+    """Two-pass box blur (edges extended), float array."""
+    k = 2 * r + 1
+    p = np.pad(a, ((0, 0), (r, r)), mode="edge")
+    c = np.cumsum(np.pad(p, ((0, 0), (1, 0))), axis=1)
+    a = (c[:, k:] - c[:, :-k]) / k
+    p = np.pad(a, ((r, r), (0, 0)), mode="edge")
+    c = np.cumsum(np.pad(p, ((1, 0), (0, 0))), axis=0)
+    return (c[k:, :] - c[:-k, :]) / k
+
+
+def cloud_cover(when, side=1024):
+    """Cloudiness (0…255, PNG) over the app's wide area for a 10-minute slot, exactly as the app
+    makes it: the cloud mask (finds low cloud and fog too), deepened where the infrared shows
+    thick, cold tops. None if the pictures aren't out yet (or come back blank)."""
+    box = _wide_bbox()
+    ir_raw = _getmap("mtg_fd:ir105_hrfi", "image/jpeg", side, when, bbox=box)
+    mask_time = when.replace(minute=when.minute // 15 * 15, second=0, microsecond=0)
+    mask_raw = _getmap("msg_fes:clm", "image/png", side, mask_time, bbox=box)
+    if mask_raw is None:
+        mask_raw = _getmap("msg_fes:clm", "image/png", side, mask_time - dt.timedelta(minutes=15), bbox=box)
+    ir = None
+    if ir_raw is not None and len(ir_raw) > 1000:
+        g = np.asarray(Image.open(io.BytesIO(ir_raw)).convert("L").resize((side, side)), np.float64) / 255
+        t = np.clip((g - 0.33) / 0.42, 0, 1)
+        ir = t * t * (3 - 2 * t)
+    cloudy = None
+    if mask_raw is not None and len(mask_raw) > 1000:
+        m = np.asarray(Image.open(io.BytesIO(mask_raw)).convert("RGBA").resize((side, side), Image.NEAREST), np.float64)
+        white = (m[..., 3] > 128) & (m[..., 0] > 170) & (m[..., 1] > 170) & (m[..., 2] > 170)
+        cloudy = _box_blur(white.astype(np.float64), 4)
+    if ir is None and cloudy is None:
+        return None
+    if ir is None:
+        out = cloudy
+    elif cloudy is None:
+        out = ir
+    else:
+        out = np.maximum(cloudy * (0.5 + 0.5 * ir), ir)
+    # A slot that isn't published yet comes back as an empty picture: not real.
+    if (out > 40 / 255).mean() < 0.002:
+        return None
+    buf = io.BytesIO()
+    Image.fromarray(np.clip(out * 255, 0, 255).astype(np.uint8), mode="L").save(buf, "PNG", optimize=True)
     return buf.getvalue()
 
 
