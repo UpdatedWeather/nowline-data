@@ -97,6 +97,21 @@ def build_live(out, cache, hours=3.0):
         return (ts(t), p)
     radar_done = [r for r in pmap(do_radar, frames, 4) if r[1]]
 
+    # Met Office UK composite (1 km, every 5 minutes, the app's main radar), as small ready-to-draw
+    # pictures, so phones don't download and unpack the big HDF5 files themselves.
+    try:
+        mo_frames = radar.metoffice_list(now - dt.timedelta(hours=4, minutes=10), now)
+    except Exception as e:
+        log("metoffice: list failed", e)
+        mo_frames = []
+
+    def do_mo(item):
+        t, k = item
+        p = cached(cache, f"mo/m_{ts(t)}.png", lambda: png_bytes(radar.metoffice_frame(k)))
+        return (ts(t), p)
+    mo_done = [r for r in pmap(do_mo, mo_frames, 6) if r[1]]
+    log(f"metoffice: {len(mo_done)}/{len(mo_frames)} frames")
+
     # Satellite: every 10 minutes, newest first (latest slot appears ~20 min late).
     slots = sorted({ts(t) // 600 * 600 for t, _ in frames} | {ts(now) // 600 * 600 - k * 600 for k in range(1, 5)})
     slots = [s for s in slots if s <= ts(now) - 600]
@@ -135,6 +150,11 @@ def build_live(out, cache, hours=3.0):
         name = f"live/r_{t}.png"
         shutil.copy(p, os.path.join(out, name))
         manifest["radar"].append({"t": t, "url": name})
+    manifest["metoffice"] = []
+    for t, p in mo_done:
+        name = f"live/m_{t}.png"
+        shutil.copy(p, os.path.join(out, name))
+        manifest["metoffice"].append({"t": t, "url": name})
     for s, p in sat_done:
         name = f"live/s_{s}.jpg"
         shutil.copy(p, os.path.join(out, name))
@@ -191,7 +211,7 @@ def build_nowcast(out, radar_done):
 
 
 def prune(cache, keep_after):
-    for sub in ("opera", "sat", "li"):
+    for sub in ("opera", "mo", "sat", "li"):
         d = os.path.join(cache, sub)
         if not os.path.isdir(d):
             continue
