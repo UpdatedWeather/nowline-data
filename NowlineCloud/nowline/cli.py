@@ -123,6 +123,18 @@ def build_live(out, cache, hours=3.0):
     sat_done = [r for r in pmap(do_sat, slots, 6) if r[1]]
     log(f"satellite: {len(sat_done)}/{len(slots)}")
 
+    # Cloud for the app's cloud layer: every 10 minutes over the radar's four hours, newest first,
+    # made here once for everyone instead of on every phone.
+    newest_cloud = ts(now) // 600 * 600 - 600
+    cloud_slots = [newest_cloud - k * 600 for k in range(0, 26)]
+
+    def do_cloud(s):
+        when = dt.datetime.fromtimestamp(s, UTC)
+        p = cached(cache, f"cloud/c_{s}.png", lambda: imagery.cloud_cover(when))
+        return (s, p)
+    cloud_done = [r for r in pmap(do_cloud, cloud_slots, 4) if r[1]]
+    log(f"cloud: {len(cloud_done)}/{len(cloud_slots)}")
+
     # Lightning: real flashes from the Lightning Imager when there's a EUMETSAT key; otherwise
     # the flash-area picture in 5-minute slots, turned into approximate points.
     real = flashes.recent(start, now, cache, log)
@@ -150,6 +162,11 @@ def build_live(out, cache, hours=3.0):
         name = f"live/r_{t}.png"
         shutil.copy(p, os.path.join(out, name))
         manifest["radar"].append({"t": t, "url": name})
+    manifest["cloud"] = []
+    for s, p in sorted(cloud_done):
+        name = f"live/c_{s}.png"
+        shutil.copy(p, os.path.join(out, name))
+        manifest["cloud"].append({"t": s, "url": name})
     manifest["metoffice"] = []
     for t, p in mo_done:
         name = f"live/m_{t}.png"
@@ -211,7 +228,7 @@ def build_nowcast(out, radar_done):
 
 
 def prune(cache, keep_after):
-    for sub in ("opera", "mo", "sat", "li"):
+    for sub in ("opera", "mo", "cloud", "sat", "li"):
         d = os.path.join(cache, sub)
         if not os.path.isdir(d):
             continue
